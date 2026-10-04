@@ -32,6 +32,33 @@ export interface StyleSpec {
   opacity: number;
 }
 
+/**
+ * A color role is finite and global. Null visual fields inherit the source object's
+ * base style, so migrating a monochrome project to the single identity role cannot
+ * change its rendered pixels.
+ */
+export interface ColorRole {
+  id: string;
+  name: string;
+  fill: string | null;
+  stroke: string | null;
+  opacity: number | null;
+}
+
+export interface ColorSupercell {
+  /** Number of t₁ and t₂ translation periods before both role actions return. */
+  n: number;
+  m: number;
+}
+
+export interface ColorScheme {
+  roles: ColorRole[];
+  /** Each generator symbol maps every source role index to a target role index. */
+  actions: Record<string, number[]>;
+  /** Derived from the validated permutations, but persisted with the project. */
+  supercell: ColorSupercell;
+}
+
 export interface PatternObject extends StyleSpec {
   id: string;
   name: string;
@@ -45,6 +72,7 @@ export interface Project {
   cellWidth: number;
   cellHeight: number;
   objects: PatternObject[];
+  colorScheme: ColorScheme;
   updatedAt: number;
 }
 

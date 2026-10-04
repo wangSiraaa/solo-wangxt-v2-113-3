@@ -7,6 +7,8 @@
     "dev": "vite --host 0.0.0.0",
     "build": "svelte-check --tsconfig ./tsconfig.json && vite build",
     "test:groups": "tsx scripts/check-tiling.ts",
+    "test:colors": "tsx scripts/check-color-roles.ts",
+    "test:history": "tsx scripts/check-history-identity.ts",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {

@@ -45,8 +45,9 @@
   </div>
   {#if tile}
     <p class="meta">
-      单元 {Math.round(tile.width)}×{Math.round(tile.height)}；三角晶格使用 {tile.repeats[0]}×{tile.repeats[1]}
-      原胞形成可矩形重复的超级周期；背景保持透明。
+      单元 {Math.round(tile.width)}×{Math.round(tile.height)}；基础平移 {tile.repeats[0] / tile.colorSupercell[0]}×
+      {tile.repeats[1] / tile.colorSupercell[1]}，色彩超胞 {tile.colorSupercell[0]}×{tile.colorSupercell[1]}；
+      背景保持透明。
     </p>
   {/if}
   <div class="layer" bind:this={repeatLayer}></div>

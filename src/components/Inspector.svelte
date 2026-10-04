@@ -1,6 +1,7 @@
 <script lang="ts">
   import { editor, deleteSelected, updateSelectedObject } from '../lib/stores';
   import { requestLocateOriginal } from '../lib/ui';
+  import { instanceRole, instanceStyle } from '../lib/color';
 
   const styleFields = [
     { key: 'fill', label: '填充', type: 'color' },
@@ -12,6 +13,26 @@
   function patch(key: string, value: string | number) {
     updateSelectedObject((item) => ({ ...item, [key]: value }) as typeof item);
   }
+
+  function selectedRoleName(): string {
+    const instance = $editor.selectedInstance;
+    if (!instance) return '恒等角色（源基础样式）';
+    const match = /@(\d+):(-?\d+),(-?\d+)$/.exec(instance);
+    if (!match) return '恒等角色';
+    const [, coset, n, m] = match.map(Number);
+    const role = instanceRole($editor.project, coset!, n!, m!);
+    return `${role.name}（实例角色；源仍为恒等）`;
+  }
+
+  function selectedStyle() {
+    const item = $editor.project.objects.find((object) => object.id === $editor.selectedId);
+    if (!item) return null;
+    const instance = $editor.selectedInstance;
+    const match = instance && /@(\d+):(-?\d+),(-?\d+)$/.exec(instance);
+    if (!match) return item;
+    const [, coset, n, m] = match.map(Number);
+    return instanceStyle($editor.project, item, coset!, n!, m!);
+  }
 </script>
 
 <aside class="inspector">
@@ -22,6 +43,15 @@
       <p class="id">原始对象 ID<br /><code>{item.id}</code></p>
       <input class="name" value={item.name} on:change={(event) => patch('name', event.currentTarget.value)} />
       <p class="instance">当前选中实例：<code>{$editor.selectedInstance ?? '原始基本单元'}</code></p>
+      <p class="instance">色彩角色：<code>{selectedRoleName()}</code></p>
+      {#if selectedStyle()}
+        <p class="derived">
+          <i
+            style={`background:${selectedStyle()?.fill === 'transparent' ? 'transparent' : selectedStyle()?.fill};border-color:${selectedStyle()?.stroke};opacity:${selectedStyle()?.opacity}`}
+          ></i>
+          派生填充/描边/透明度只用于此实例；下方编辑的仍是源对象基础样式。
+        </p>
+      {/if}
       <button on:click={requestLocateOriginal}>定位到原始对象</button>
 
       <div class="styles">
@@ -70,11 +100,24 @@
     font-size: 14px;
   }
   .id,
-  .instance {
+  .instance,
+  .derived {
     margin: 0;
     color: #475569;
     font-size: 12px;
     word-break: break-all;
+  }
+  .derived {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .derived i {
+    flex: 0 0 auto;
+    width: 15px;
+    height: 15px;
+    border: 1px solid #0f172a;
+    border-radius: 50%;
   }
   code {
     color: #0f172a;

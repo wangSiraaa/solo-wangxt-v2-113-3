@@ -1,4 +1,5 @@
 import type { GroupId, PathSegment, PatternObject, Project } from '../types';
+import { identityColorScheme } from './color';
 import { ellipsePath, rectanglePath, uid } from './path';
 
 function object(id: string, name: string, path: PathSegment[], style: Partial<PatternObject> = {}): PatternObject {
@@ -22,6 +23,7 @@ function baseProject(group: GroupId, name: string, width: number, height: number
     cellWidth: width,
     cellHeight: height,
     objects,
+    colorScheme: identityColorScheme(group),
     updatedAt: Date.now()
   };
 }

@@ -1,5 +1,6 @@
 import type { mat3 } from 'gl-matrix';
-import type { Camera, PatternObject, Point, Project, RenderOptions } from '../types';
+import type { Camera, PatternObject, Point, Project, RenderOptions, StyleSpec } from '../types';
+import { instanceRoleIndex, instanceStyle } from './color';
 import {
   GROUP_SPECS,
   compose,
@@ -19,6 +20,7 @@ export interface InstanceKey {
   n: number;
   m: number;
   matrix: mat3;
+  roleIndex: number;
 }
 
 export function applyMat3(ctx: CanvasRenderingContext2D, m: mat3) {
@@ -61,7 +63,8 @@ export function visibleInstances(project: Project, camera: Camera, width: number
             coset: cosetIndex,
             n,
             m,
-            matrix: instanceMatrix(project, cosetIndex, n, m)
+            matrix: instanceMatrix(project, cosetIndex, n, m),
+            roleIndex: instanceRoleIndex(project, cosetIndex, n, m)
           });
         }
       }
@@ -107,19 +110,26 @@ export function translationRange(
   };
 }
 
-function paintObject(ctx: CanvasRenderingContext2D, item: PatternObject, selected: boolean) {
+function paintObject(ctx: CanvasRenderingContext2D, item: PatternObject, style: StyleSpec, selected: boolean) {
   const path = makePath2D(item.path);
   ctx.save();
-  ctx.globalAlpha = item.opacity;
-  if (item.fill !== 'transparent') {
-    ctx.fillStyle = item.fill;
+  ctx.globalAlpha = style.opacity;
+  if (style.fill !== 'transparent') {
+    ctx.fillStyle = style.fill;
     ctx.fill(path);
   }
-  if (item.strokeWidth > 0) {
-    ctx.lineWidth = item.strokeWidth;
+  if (style.strokeWidth > 0) {
+    ctx.lineWidth = style.strokeWidth;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    ctx.strokeStyle = selected ? '#f97316' : item.stroke;
+    ctx.strokeStyle = style.stroke;
+    ctx.stroke(path);
+  }
+  if (selected) {
+    ctx.lineWidth = Math.max(style.strokeWidth, 2.5);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#f97316';
     ctx.stroke(path);
   }
   ctx.restore();
@@ -361,15 +371,15 @@ export function drawScene(
   const domainPath = makePath2D(makePolygonPath(domainPolygon));
 
   for (const item of project.objects) {
-    const itemPath = makePath2D(item.path);
     for (let coset = 0; coset < spec.cosets(w, h).length; coset += 1) {
       for (let n = range.nMin; n <= range.nMax; n += 1) {
         for (let m = range.mMin; m <= range.mMax; m += 1) {
           const matrix = instanceMatrix(project, coset, n, m);
+          const style = instanceStyle(project, item, coset, n, m);
           ctx.save();
           applyMat3(ctx, matrix);
           ctx.clip(domainPath);
-          paintObject(ctx, item, item.id === selectedId);
+          paintObject(ctx, item, style, item.id === selectedId);
           ctx.restore();
         }
       }
@@ -396,7 +406,7 @@ export function hitTest(
   screenY: number,
   width: number,
   height: number
-): { objectId: string; instance: string; matrix: mat3; point: Point } | null {
+): { objectId: string; instance: string; matrix: mat3; point: Point; roleIndex: number } | null {
   const [worldX, worldY] = screenToWorld(camera, screenX, screenY);
   const range = translationRange(project, camera, width, height, 1);
   const [w, h] = getCellSize(project.group, project.cellWidth, project.cellHeight);
@@ -419,7 +429,8 @@ export function hitTest(
               objectId: item.id,
               instance: `${item.id}@${coset}:${n},${m}`,
               matrix,
-              point: [worldX, worldY]
+              point: [worldX, worldY],
+              roleIndex: instanceRoleIndex(project, coset, n, m)
             };
           }
           ctx.lineWidth = Math.max(4, item.strokeWidth + 5);
@@ -429,7 +440,8 @@ export function hitTest(
               objectId: item.id,
               instance: `${item.id}@${coset}:${n},${m}`,
               matrix,
-              point: [worldX, worldY]
+              point: [worldX, worldY],
+              roleIndex: instanceRoleIndex(project, coset, n, m)
             };
           }
         }

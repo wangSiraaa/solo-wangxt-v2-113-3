@@ -1,8 +1,9 @@
 import { get, writable } from 'svelte/store';
-import type { GroupId, PatternObject, Project, RenderOptions, Tool } from '../types';
+import type { ColorRole, ColorScheme, GroupId, PatternObject, Project, RenderOptions, Tool } from '../types';
 import { defaultProject } from './samples';
 import { cloneObject, applyMatrixToPath } from './path';
 import { getCellSize, GROUP_SPECS, translation } from './groups';
+import { identityColorScheme, makeRole, normalizeProject, prepareColorScheme, validateColorScheme } from './color';
 import type { mat3 } from 'gl-matrix';
 
 export interface EditorState {
@@ -36,6 +37,8 @@ const editorStore = writable<EditorState>({
 const undoStack: HistoryEntry[] = [];
 const redoStack: HistoryEntry[] = [];
 
+export const groupConflict = writable<string | null>(null);
+
 function snapshot(state: EditorState): HistoryEntry {
   return {
     project: structuredClone(state.project),
@@ -49,6 +52,7 @@ export function pushHistory() {
   undoStack.push(snapshot(state));
   if (undoStack.length > 100) undoStack.shift();
   redoStack.length = 0;
+  groupConflict.set(null);
   editorStore.update((s) => ({ ...s, canUndo: true, canRedo: false, saved: false }));
 }
 
@@ -67,6 +71,7 @@ export function undo() {
       saved: false
     };
   });
+  groupConflict.set(null);
 }
 
 export function redo() {
@@ -84,6 +89,7 @@ export function redo() {
       saved: false
     };
   });
+  groupConflict.set(null);
 }
 
 export function updateProject(mutator: (project: Project) => Project, record = true) {
@@ -95,12 +101,14 @@ export function updateProject(mutator: (project: Project) => Project, record = t
 }
 
 export function setProject(project: Project, clearHistory = true) {
+  const normalized = normalizeProject(structuredClone(project));
   if (clearHistory) {
     undoStack.length = 0;
     redoStack.length = 0;
   }
+  groupConflict.set(null);
   editorStore.set({
-    project: structuredClone(project),
+    project: normalized,
     selectedId: project.objects[0]?.id ?? null,
     selectedInstance: null,
     tool: 'select',
@@ -118,31 +126,133 @@ export function setTool(tool: Tool) {
   editorStore.update((state) => ({ ...state, tool }));
 }
 
-export function setGroup(group: GroupId) {
-  updateProject((project) => {
-    const square = group === 'p4' || group === 'p4m' || group === 'p4g';
-    const triangular =
-      group === 'p3' ||
-      group === 'p3m1' ||
-      group === 'p31m' ||
-      group === 'p6' ||
-      group === 'p6m';
-    const cellHeight = square
-      ? project.cellWidth
-      : triangular
-        ? Math.round((Math.sqrt(3) / 2) * project.cellWidth)
-        : project.cellHeight;
-    return { ...project, group, cellHeight };
-  });
-  editorStore.update((state) => ({ ...state, selectedInstance: null }));
-}
-
-export function setCellSize(width: number, height: number) {
+export function setGroup(group: GroupId): boolean {
+  const current = get(editorStore).project;
+  const square = group === 'p4' || group === 'p4m' || group === 'p4g';
+  const triangular =
+    group === 'p3' ||
+    group === 'p3m1' ||
+    group === 'p31m' ||
+    group === 'p6' ||
+    group === 'p6m';
+  const cellHeight = square
+    ? current.cellWidth
+    : triangular
+      ? Math.round((Math.sqrt(3) / 2) * current.cellWidth)
+      : current.cellHeight;
+  const colorScheme = prepareColorScheme(group, current.colorScheme);
+  const validation = validateColorScheme(group, colorScheme);
+  if (!validation.valid) {
+    groupConflict.set(
+      `不能切换到 ${GROUP_SPECS[group].name}：当前色彩角色映射不兼容。${validation.errors.join(' ')} 已保留现有工程和映射。`
+    );
+    return false;
+  }
+  groupConflict.set(null);
   updateProject((project) => ({
     ...project,
-    cellWidth: Math.max(40, Math.round(width)),
-    cellHeight: Math.max(40, Math.round(height))
+    group,
+    cellHeight,
+    colorScheme: { ...colorScheme, supercell: validation.supercell }
   }));
+  editorStore.update((state) => ({ ...state, selectedInstance: null }));
+  return true;
+}
+
+export function setCellSize(width: number, height: number): boolean {
+  const current = get(editorStore).project;
+  const nextWidth = Math.max(40, Math.round(width));
+  const square = current.group === 'p4' || current.group === 'p4m' || current.group === 'p4g';
+  const triangular =
+    current.group === 'p3' ||
+    current.group === 'p3m1' ||
+    current.group === 'p31m' ||
+    current.group === 'p6' ||
+    current.group === 'p6m';
+  const nextHeight = square
+    ? nextWidth
+    : triangular
+      ? Math.round((Math.sqrt(3) / 2) * nextWidth)
+      : Math.max(40, Math.round(height));
+  const validation = validateColorScheme(current.group, current.colorScheme);
+  if (!validation.valid) {
+    groupConflict.set(`不能修改晶格：当前角色映射未通过群关系。${validation.errors.join(' ')}`);
+    return false;
+  }
+  groupConflict.set(null);
+  updateProject((project) => ({ ...project, cellWidth: nextWidth, cellHeight: nextHeight }));
+  return true;
+}
+
+export function updateColorScheme(mutator: (scheme: ColorScheme) => ColorScheme): boolean {
+  const current = get(editorStore).project;
+  const candidate = prepareColorScheme(current.group, mutator(structuredClone(current.colorScheme)));
+  const validation = validateColorScheme(current.group, candidate);
+  if (!validation.valid) {
+    groupConflict.set(`色彩角色配置被拒绝：${validation.errors.join(' ')}`);
+    return false;
+  }
+  groupConflict.set(null);
+  updateProject((project) => ({
+    ...project,
+    colorScheme: { ...candidate, supercell: validation.supercell }
+  }));
+  return true;
+}
+
+export function addColorRole(): boolean {
+  return updateColorScheme((scheme) => {
+    const role = makeRole(scheme.roles.length + 1);
+    const actions = Object.fromEntries(
+      Object.entries(scheme.actions).map(([symbol, permutation]) => [
+        symbol,
+        [...permutation, scheme.roles.length]
+      ])
+    );
+    return { ...scheme, roles: [...scheme.roles, role], actions };
+  });
+}
+
+export function updateColorRole(roleId: string, patch: Partial<ColorRole>): boolean {
+  return updateColorScheme((scheme) => ({
+    ...scheme,
+    roles: scheme.roles.map((role) => (role.id === roleId ? { ...role, ...patch } : role))
+  }));
+}
+
+export function deleteColorRole(roleId: string): boolean {
+  const current = get(editorStore).project;
+  if (current.colorScheme.roles[0]?.id === roleId) {
+    groupConflict.set('恒等角色不能删除；它是源对象的基础角色。');
+    return false;
+  }
+  return updateColorScheme((scheme) => {
+    const index = scheme.roles.findIndex((role) => role.id === roleId);
+    if (index <= 0) return scheme;
+    const remap = (target: number) => (target > index ? target - 1 : target);
+    const actions = Object.fromEntries(
+      Object.entries(scheme.actions).map(([symbol, permutation]) => {
+        const replacement = remap(permutation[index]!);
+        return [
+          symbol,
+          permutation
+            .filter((_, targetIndex) => targetIndex !== index)
+            .map((target) => remap(target === index ? replacement : target))
+        ];
+      })
+    );
+    return {
+      ...scheme,
+      roles: scheme.roles.filter((role) => role.id !== roleId),
+      actions
+    };
+  });
+}
+
+export function resetColorScheme(): boolean {
+  groupConflict.set(null);
+  updateProject((project) => ({ ...project, colorScheme: identityColorScheme(project.group) }));
+  return true;
 }
 
 export function addObject(item: PatternObject, select = true) {

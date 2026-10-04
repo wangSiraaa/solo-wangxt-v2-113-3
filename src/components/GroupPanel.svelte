@@ -1,7 +1,8 @@
 <script lang="ts">
   import { GROUP_LIST, GROUP_SPECS, getCellSize, matrixRows } from '../lib/groups';
   import { checkRelations, translationCoverage } from '../lib/verifier';
-  import { editor, setCellSize, setGroup } from '../lib/stores';
+  import { editor, groupConflict, setCellSize, setGroup } from '../lib/stores';
+  import ColorRoles from './ColorRoles.svelte';
   import type { GroupId } from '../types';
 
   let showMatrices = false;
@@ -13,7 +14,7 @@
   $: coverage = translationCoverage(project.group, cellW, cellH);
   function chooseGroup(event: Event) {
     const target = event.currentTarget as HTMLSelectElement;
-    setGroup(target.value as GroupId);
+    if (!setGroup(target.value as GroupId)) target.value = project.group;
   }
   $: square = project.group === 'p4' || project.group === 'p4m' || project.group === 'p4g';
   $: triangular =
@@ -37,6 +38,9 @@
   <p class="description">
     {spec.crystalName} · 常规单元 {Math.round(cellW)} × {Math.round(cellH)} · 每原胞 {spec.order} 个轨道像
   </p>
+  {#if $groupConflict}
+    <p class="conflict">{$groupConflict}</p>
+  {/if}
 
   <div class="sizes">
     <label>
@@ -98,6 +102,7 @@
   <button on:click={() => (showMatrices = !showMatrices)}>
     {showMatrices ? '隐藏矩阵数值' : '显示 gl-matrix 矩阵数值'}
   </button>
+  <ColorRoles />
 </section>
 
 <style>
@@ -125,6 +130,16 @@
     color: #475569;
     font-size: 12px;
     line-height: 1.4;
+  }
+  .conflict {
+    margin: 0;
+    padding: 7px;
+    border: 1px solid #fecaca;
+    border-radius: 7px;
+    background: #fef2f2;
+    color: #991b1b;
+    font-size: 12px;
+    line-height: 1.35;
   }
   .sizes {
     display: grid;
