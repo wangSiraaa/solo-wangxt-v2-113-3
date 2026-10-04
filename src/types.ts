@@ -32,6 +32,33 @@ export interface StyleSpec {
   opacity: number;
 }
 
+/**
+ * A color role is finite metadata shared by derived instances. `null` means the
+ * corresponding value is inherited from the single source object, keeping the
+ * identity role and old monochrome projects bit-for-bit equivalent.
+ */
+export interface ColorRole {
+  id: string;
+  name: string;
+  fill: string | null;
+  stroke: string | null;
+  opacity: number | null;
+}
+
+/** Full role permutation for each generator symbol. */
+export interface ColorConfig {
+  roles: ColorRole[];
+  generatorPermutations: Record<string, Record<string, string>>;
+}
+
+export interface ColorSupercell {
+  /** Number of primitive cells in the rectangular color period. */
+  repeats: [number, number];
+  baseCells: [number, number];
+  width: number;
+  height: number;
+}
+
 export interface PatternObject extends StyleSpec {
   id: string;
   name: string;
@@ -44,6 +71,8 @@ export interface Project {
   group: GroupId;
   cellWidth: number;
   cellHeight: number;
+  colorConfig: ColorConfig;
+  colorSupercell: ColorSupercell;
   objects: PatternObject[];
   updatedAt: number;
 }

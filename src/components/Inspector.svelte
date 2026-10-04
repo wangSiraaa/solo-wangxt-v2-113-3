@@ -21,7 +21,14 @@
     {#if item}
       <p class="id">原始对象 ID<br /><code>{item.id}</code></p>
       <input class="name" value={item.name} on:change={(event) => patch('name', event.currentTarget.value)} />
-      <p class="instance">当前选中实例：<code>{$editor.selectedInstance ?? '原始基本单元'}</code></p>
+      <p class="instance">
+        当前选中实例：<code>{$editor.selectedInstance ?? '原始基本单元'}</code>
+        {#if $editor.selectedRoleId}
+          <br />派生色彩角色：
+          <strong>{$editor.project.colorConfig.roles.find((role) => role.id === $editor.selectedRoleId)?.name ?? $editor.selectedRoleId}</strong>
+          <code>（{$editor.selectedRoleId}）</code>
+        {/if}
+      </p>
       <button on:click={requestLocateOriginal}>定位到原始对象</button>
 
       <div class="styles">

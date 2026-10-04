@@ -1,7 +1,8 @@
 import type { Project } from '../types';
-import { GROUP_SPECS, getCellSize, translationMatrix } from './groups';
+import { GROUP_SPECS, getCellSize } from './groups';
 import { applyMat3, instanceMatrix } from './render';
-import { makePath2D, makePolygonPath, tracePath } from './path';
+import { roleForInstance, styleForRole } from './color';
+import { makePath2D, makePolygonPath } from './path';
 
 export interface TileResult {
   canvas: HTMLCanvasElement;
@@ -9,27 +10,23 @@ export interface TileResult {
   height: number;
   repeats: [number, number];
   primitive: [number, number];
+  colorRepeats: [number, number];
 }
 
 /**
- * Render a true periodic image. Rectangular groups use one conventional cell.
- * Triangular groups export a rectangular supercell formed by 2×2 primitive vectors,
- * which still repeats under the wallpaper group's translation lattice. Fundamental
- * domains are clipped as matrix images, including on transparent pixels.
+ * Render a true rectangular periodic image. The rectangular geometric cell is
+ * enlarged by the finite color translation subgroup so that the PNG is periodic
+ * in both geometry and role. Like the canvas and hit tester, the pixels come from
+ * matrix images of the source objects rather than copied color objects.
  */
 export function exportPeriodicTile(project: Project, scale = 2): TileResult {
   const [cellW, cellH] = getCellSize(project.group, project.cellWidth, project.cellHeight);
   const spec = GROUP_SPECS[project.group];
-  const triangular =
-    project.group === 'p3' ||
-    project.group === 'p3m1' ||
-    project.group === 'p31m' ||
-    project.group === 'p6' ||
-    project.group === 'p6m';
-  const repeatN = triangular ? 2 : 1;
-  const repeatM = triangular ? 2 : 1;
-  const width = cellW * repeatN;
-  const height = cellH * repeatM;
+  const triangular = project.colorSupercell.baseCells[0] === 2 && project.colorSupercell.baseCells[1] === 2;
+  const repeatN = project.colorSupercell.repeats[0]!;
+  const repeatM = project.colorSupercell.repeats[1]!;
+  const width = project.colorSupercell.width;
+  const height = project.colorSupercell.height;
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(width * scale);
   canvas.height = Math.round(height * scale);
@@ -40,12 +37,10 @@ export function exportPeriodicTile(project: Project, scale = 2): TileResult {
 
   const cosetMatrices = spec.cosets(cellW, cellH);
   const domainPath = makePath2D(makePolygonPath(spec.domain(cellW, cellH)));
-
-  // A few extra neighboring primitive copies are needed only because some fundamental
-  // domain coordinates (pm/pmg/cm) extend across the conventional rectangle's border.
+  const limit = Math.max(repeatN, repeatM);
   const range = triangular
-    ? { nMin: -1, nMax: 2, mMin: -1, mMax: 2 }
-    : { nMin: -1, nMax: 1, mMin: -1, mMax: 1 };
+    ? { nMin: -limit - 1, nMax: limit * 2 + 1, mMin: -limit - 1, mMax: limit * 2 + 1 }
+    : { nMin: -1, nMax: repeatN, mMin: -1, mMax: repeatM };
 
   for (const item of project.objects) {
     const path = makePath2D(item.path);
@@ -53,23 +48,24 @@ export function exportPeriodicTile(project: Project, scale = 2): TileResult {
       for (let n = range.nMin; n <= range.nMax; n += 1) {
         for (let m = range.mMin; m <= range.mMax; m += 1) {
           ctx.save();
-          // Translate into the positive rectangular supercell before clipping.
-          const shift = translationMatrix(project.group, cellW, cellH, triangular ? 1 : 0, triangular ? 1 : 0);
-          const matrix = shift;
-          void matrix;
           applyMat3(ctx, instanceMatrix(project, coset, n + (triangular ? 1 : 0), m + (triangular ? 1 : 0)));
           ctx.beginPath();
           ctx.rect(0, 0, width, height);
           ctx.clip();
           ctx.clip(domainPath);
-          ctx.globalAlpha = item.opacity;
-          if (item.fill !== 'transparent') {
-            ctx.fillStyle = item.fill;
+          const style = styleForRole(
+            item,
+            roleForInstance(project, coset, n + (triangular ? 1 : 0), m + (triangular ? 1 : 0)),
+            project.colorConfig
+          );
+          ctx.globalAlpha = style.opacity;
+          if (style.fill !== 'transparent') {
+            ctx.fillStyle = style.fill;
             ctx.fill(path);
           }
-          if (item.strokeWidth > 0) {
-            ctx.strokeStyle = item.stroke;
-            ctx.lineWidth = item.strokeWidth;
+          if (style.strokeWidth > 0) {
+            ctx.strokeStyle = style.stroke;
+            ctx.lineWidth = style.strokeWidth;
             ctx.lineJoin = 'round';
             ctx.lineCap = 'round';
             ctx.stroke(path);
@@ -79,13 +75,13 @@ export function exportPeriodicTile(project: Project, scale = 2): TileResult {
       }
     }
   }
-  void tracePath;
   return {
     canvas,
     width,
     height,
-    repeats: [repeatN, repeatM],
-    primitive: [cellW, cellH]
+    repeats: project.colorSupercell.baseCells,
+    primitive: [cellW, cellH],
+    colorRepeats: [repeatN, repeatM]
   };
 }
 

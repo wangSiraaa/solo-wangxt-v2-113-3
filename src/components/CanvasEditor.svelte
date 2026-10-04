@@ -193,7 +193,7 @@
     const hit = hitTest(ctx, $editor.project, camera, x, y, width, height);
     if ($editor.tool === 'select' || $editor.tool === 'node') {
       if (hit) {
-        selectObject(hit.objectId, hit.instance);
+        selectObject(hit.objectId, hit.instance, hit.roleId);
         hoverInstance = hit.instance;
         const source = $editor.project.objects.find((item) => item.id === hit.objectId);
         if (source && $editor.tool === 'select') {

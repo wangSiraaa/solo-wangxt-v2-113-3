@@ -1,4 +1,5 @@
 import type { Project } from '../types';
+import { normalizeProject } from './color';
 
 const DB_NAME = 'wallpaper-symmetry-editor';
 const DB_VERSION = 1;
@@ -29,7 +30,8 @@ export async function saveProject(project: Project): Promise<void> {
   const db = await openDb();
   try {
     const tx = db.transaction(STORE, 'readwrite');
-    await requestToPromise(tx.objectStore(STORE).put({ ...project, updatedAt: Date.now() }));
+    const normalized = normalizeProject({ ...project, updatedAt: Date.now() });
+    await requestToPromise(tx.objectStore(STORE).put(normalized));
   } finally {
     db.close();
   }
@@ -39,7 +41,8 @@ export async function loadProject(id: string): Promise<Project | undefined> {
   const db = await openDb();
   try {
     const tx = db.transaction(STORE, 'readonly');
-    return await requestToPromise(tx.objectStore(STORE).get(id));
+    const stored = await requestToPromise(tx.objectStore(STORE).get(id));
+    return stored ? normalizeProject(stored) : undefined;
   } finally {
     db.close();
   }
@@ -50,7 +53,7 @@ export async function listProjects(): Promise<Project[]> {
   try {
     const tx = db.transaction(STORE, 'readonly');
     const projects = await requestToPromise(tx.objectStore(STORE).getAll());
-    return projects.sort((a, b) => b.updatedAt - a.updatedAt);
+    return projects.map((project: Project) => normalizeProject(project)).sort((a, b) => b.updatedAt - a.updatedAt);
   } finally {
     db.close();
   }

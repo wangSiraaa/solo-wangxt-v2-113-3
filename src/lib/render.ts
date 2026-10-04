@@ -12,6 +12,7 @@ import {
   translationMatrix
 } from './groups';
 import { makePath2D, makePolygonPath, tracePath } from './path';
+import { roleForInstance, styleForRole } from './color';
 
 export interface InstanceKey {
   objectId: string;
@@ -19,6 +20,7 @@ export interface InstanceKey {
   n: number;
   m: number;
   matrix: mat3;
+  roleId: string;
 }
 
 export function applyMat3(ctx: CanvasRenderingContext2D, m: mat3) {
@@ -61,7 +63,8 @@ export function visibleInstances(project: Project, camera: Camera, width: number
             coset: cosetIndex,
             n,
             m,
-            matrix: instanceMatrix(project, cosetIndex, n, m)
+            matrix: instanceMatrix(project, cosetIndex, n, m),
+            roleId: roleForInstance(project, cosetIndex, n, m)
           });
         }
       }
@@ -107,19 +110,26 @@ export function translationRange(
   };
 }
 
-function paintObject(ctx: CanvasRenderingContext2D, item: PatternObject, selected: boolean) {
+function paintObject(
+  ctx: CanvasRenderingContext2D,
+  item: PatternObject,
+  roleId: string,
+  project: Project,
+  selected: boolean
+) {
   const path = makePath2D(item.path);
+  const style = styleForRole(item, roleId, project.colorConfig);
   ctx.save();
-  ctx.globalAlpha = item.opacity;
-  if (item.fill !== 'transparent') {
-    ctx.fillStyle = item.fill;
+  ctx.globalAlpha = style.opacity;
+  if (style.fill !== 'transparent') {
+    ctx.fillStyle = style.fill;
     ctx.fill(path);
   }
-  if (item.strokeWidth > 0) {
-    ctx.lineWidth = item.strokeWidth;
+  if (style.strokeWidth > 0) {
+    ctx.lineWidth = style.strokeWidth;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    ctx.strokeStyle = selected ? '#f97316' : item.stroke;
+    ctx.strokeStyle = selected ? '#f97316' : style.stroke;
     ctx.stroke(path);
   }
   ctx.restore();
@@ -360,21 +370,17 @@ export function drawScene(
   const domainPolygon = spec.domain(w, h);
   const domainPath = makePath2D(makePolygonPath(domainPolygon));
 
-  for (const item of project.objects) {
-    const itemPath = makePath2D(item.path);
-    for (let coset = 0; coset < spec.cosets(w, h).length; coset += 1) {
-      for (let n = range.nMin; n <= range.nMax; n += 1) {
-        for (let m = range.mMin; m <= range.mMax; m += 1) {
-          const matrix = instanceMatrix(project, coset, n, m);
-          ctx.save();
-          applyMat3(ctx, matrix);
-          ctx.clip(domainPath);
-          paintObject(ctx, item, item.id === selectedId);
-          ctx.restore();
-        }
-      }
+  const instancesByObject = visibleInstances(project, camera, width, height);
+
+  project.objects.forEach((item, objectIndex) => {
+    for (const instance of instancesByObject[objectIndex] ?? []) {
+      ctx.save();
+      applyMat3(ctx, instance.matrix);
+      ctx.clip(domainPath);
+      paintObject(ctx, item, instance.roleId, project, item.id === selectedId);
+      ctx.restore();
     }
-  }
+  });
 
   if (options.showDomain) {
     for (let n = range.nMin; n <= range.nMax; n += 1) {
@@ -396,7 +402,7 @@ export function hitTest(
   screenY: number,
   width: number,
   height: number
-): { objectId: string; instance: string; matrix: mat3; point: Point } | null {
+): { objectId: string; instance: string; matrix: mat3; point: Point; roleId: string } | null {
   const [worldX, worldY] = screenToWorld(camera, screenX, screenY);
   const range = translationRange(project, camera, width, height, 1);
   const [w, h] = getCellSize(project.group, project.cellWidth, project.cellHeight);
@@ -413,23 +419,27 @@ export function hitTest(
           const [px, py] = transformPoint(inverse, worldX, worldY);
           const sourcePath = makePath2D(item.path);
           const domainPath = makePath2D(makePolygonPath(spec.domain(w, h)));
+          const roleId = roleForInstance(project, coset, n, m);
+          const style = styleForRole(item, roleId, project.colorConfig);
           if (!ctx.isPointInPath(domainPath, px, py)) continue;
-          if (item.fill !== 'transparent' && ctx.isPointInPath(sourcePath, px, py)) {
+          if (style.fill !== 'transparent' && ctx.isPointInPath(sourcePath, px, py)) {
             return {
               objectId: item.id,
               instance: `${item.id}@${coset}:${n},${m}`,
               matrix,
-              point: [worldX, worldY]
+              point: [worldX, worldY],
+              roleId
             };
           }
-          ctx.lineWidth = Math.max(4, item.strokeWidth + 5);
+          ctx.lineWidth = Math.max(4, style.strokeWidth + 5);
           ctx.lineJoin = 'round';
           if (ctx.isPointInStroke(sourcePath, px, py)) {
             return {
               objectId: item.id,
               instance: `${item.id}@${coset}:${n},${m}`,
               matrix,
-              point: [worldX, worldY]
+              point: [worldX, worldY],
+              roleId
             };
           }
         }

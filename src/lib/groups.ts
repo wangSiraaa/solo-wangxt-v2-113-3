@@ -224,7 +224,7 @@ export const GROUP_SPECS: Record<GroupId, GroupSpec> = {
       [w, h / 2],
       [w, 0]
     ],
-    relations: ['g² = t₁', 'g t₂ g = t₂']
+    relations: ['g² = t₁', 'g t₂ g = t₂⁻¹']
   },
   cm: {
     id: 'cm',
@@ -342,7 +342,7 @@ export const GROUP_SPECS: Record<GroupId, GroupSpec> = {
       [w / 2, 0],
       [w / 2, h / 2]
     ],
-    relations: ['mₓ² = m_y² = 1', 'mₓt₁mₓ = t₂']
+    relations: ['mₓ² = m_y² = 1', 'mₓt₁mₓ = t₂⁻¹', 'm_y t₁ m_y = t₂']
   },
   p4: {
     id: 'p4',
@@ -434,7 +434,7 @@ export const GROUP_SPECS: Record<GroupId, GroupSpec> = {
       [0, (2 * h) / 3],
       [-h / Math.sqrt(3), h / 3]
     ],
-    relations: ['r₃³ = 1', 'r₃t₁r₃⁻¹ = t₂', 'r₃t₂r₃⁻¹ = t₂t₁⁻¹']
+    relations: ['r₃³ = 1', 'r₃t₁r₃⁻¹ = t₂t₁⁻¹', 'r₃t₂r₃⁻¹ = t₁⁻¹']
   },
   p3m1: {
     id: 'p3m1',

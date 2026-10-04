@@ -45,8 +45,8 @@
   </div>
   {#if tile}
     <p class="meta">
-      单元 {Math.round(tile.width)}×{Math.round(tile.height)}；三角晶格使用 {tile.repeats[0]}×{tile.repeats[1]}
-      原胞形成可矩形重复的超级周期；背景保持透明。
+      几何矩形 {tile.repeats[0]}×{tile.repeats[1]} 原胞，色彩超胞再乘 {tile.colorRepeats[0]}×{tile.colorRepeats[1]}；
+      导出 PNG 为 {Math.round(tile.width)}×{Math.round(tile.height)}，背景保持透明。
     </p>
   {/if}
   <div class="layer" bind:this={repeatLayer}></div>

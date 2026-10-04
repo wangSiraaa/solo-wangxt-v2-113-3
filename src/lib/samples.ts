@@ -1,5 +1,6 @@
-import type { GroupId, PathSegment, PatternObject, Project } from '../types';
+import type { ColorConfig, GroupId, PathSegment, PatternObject, Project } from '../types';
 import { ellipsePath, rectanglePath, uid } from './path';
+import { normalizeProject, p4mFourColorConfig, pgGlideColorConfig } from './color';
 
 function object(id: string, name: string, path: PathSegment[], style: Partial<PatternObject> = {}): PatternObject {
   return {
@@ -14,16 +15,24 @@ function object(id: string, name: string, path: PathSegment[], style: Partial<Pa
   };
 }
 
-function baseProject(group: GroupId, name: string, width: number, height: number, objects: PatternObject[]): Project {
-  return {
+function baseProject(
+  group: GroupId,
+  name: string,
+  width: number,
+  height: number,
+  objects: PatternObject[],
+  colorConfig?: ColorConfig
+): Project {
+  return normalizeProject({
     id: uid('project'),
     name,
     group,
     cellWidth: width,
     cellHeight: height,
+    colorConfig,
     objects,
     updatedAt: Date.now()
-  };
+  });
 }
 
 export function p6mSample(): Project {
@@ -94,7 +103,8 @@ export function glideSample(): Project {
         strokeWidth: 2,
         opacity: 0.78
       })
-    ]
+    ],
+    pgGlideColorConfig()
   );
 }
 
@@ -127,7 +137,8 @@ export function rotationSample(): Project {
         strokeWidth: 2,
         opacity: 0.38
       })
-    ]
+    ],
+    p4mFourColorConfig()
   );
 }
 

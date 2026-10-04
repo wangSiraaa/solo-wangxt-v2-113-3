@@ -35,8 +35,10 @@ export function checkRelations(group: GroupId, w: number, h: number): RelationCh
   // triangular generator pairs; they still commute as affine matrices when interpreted in
   // their primitive basis, while the displayed conventional coordinates differ by design.
   switch (group) {
-    case 'p1':
+    case 'p1': {
+      add('t₂t₁ = t₁t₂', compose(T2, T1), compose(T1, T2));
       break;
+    }
     case 'p2': {
       const r = G(2);
       add('r² = 1', compose(r, r), I);
@@ -54,7 +56,7 @@ export function checkRelations(group: GroupId, w: number, h: number): RelationCh
     case 'pg': {
       const g = G(2);
       add('g² = t₁', compose(g, g), T1);
-      add('g t₂ g = t₂', compose(g, T2, g), T2);
+      add('g t₂ g = t₂⁻¹', compose(g, T2, g), translation(0, -ch));
       break;
     }
     case 'cm': {
